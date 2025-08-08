@@ -1,6 +1,12 @@
 # Blog Firestore Interface
 
-Requirements: Admin Service Account (service_account.json)
+## Requirements
+
+A `service_account.json` containing the admin service account key
+
+## Description
+
+You can choose to Load and Update pre-existing posts, as well as Create and Store new ones. Automatically stores/updates creation time and last time updated. 
 
 ## Instructions
 
@@ -18,12 +24,12 @@ pip install -r requirements.txt
 
 ## Post Format:
 
-Document ID (Blank = Random)
+Document ID (Blank = Random) - String
 
-Title
+Title - String
 
-Body
+Body - String
 
-## Description
+Timestamp - Timestamp Object
 
-You can choose to Load and Update pre-existing posts, as well as Create and Store new ones
+Updated - Timestamp Object
