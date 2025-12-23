@@ -1,21 +1,112 @@
 import sys
-from PyQt5 import QtWidgets, QtCore
+from PyQt5 import QtWidgets
+from PyQt5.QtWebEngineWidgets import QWebEngineView
 from google.cloud import firestore
 from google.oauth2 import service_account
+
 creds = service_account.Credentials.from_service_account_file(
     'service_account.json'
 )
 db = firestore.Client(credentials=creds)
 
+HTML_TEMPLATE = r"""
+    <!DOCTYPE html>
+    <html>
+        <head>
+            <meta charset="utf-8" />
+            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.css">
+            <script src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.js"></script>
+            <script src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/contrib/auto-render.min.js"></script>
+
+            <style>
+                body {
+                    margin: 0;
+                    padding: 8px;
+                    font-family: sans-serif;
+                }
+                .textParserBlock {
+                    display: block;
+                    margin-bottom: 1em;
+                }
+            </style>
+        </head>
+
+        <body>
+            <div id="content"></div>
+
+            <script>
+
+                function parseNewlines(text) {
+                    return text
+                    .split('\\n')
+                    .map(p => `<p class="textParserBlock">${p}</p>`)
+                    .join("");
+                }
+
+                function parseBlockMath(html) {
+                    return html.replace(
+                        /\$\$([\s\S]+?)\$\$/g,
+                        (_, expr) => `<div class="math-block">\\[${expr.trim()}\\]</div>`
+                    );
+                }
+
+                function parseInlineMath(html) {
+                    return html.replace(
+                        /\$(.+?)\$/g,
+                        (_, expr) => `\\(${expr}\\)`
+                    );
+                }
+
+                function parseTextDecorations(html) {
+                    return html
+                    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+                    .replace(/\*(.+?)\*/g, "<em>$1</em>")
+                    .replace(/__(.+?)__/g, "<u>$1</u>");
+                }
+
+                function parseLinks(html) {
+                    return html.replace(
+                        /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g,
+                        '<a href="$2" target="_blank">$1</a>'
+                    );
+                }
+
+                function parseMarkdown(text) {
+                    let html = text;
+                    html = parseNewlines(html);
+                    html = parseBlockMath(html);
+                    html = parseInlineMath(html);
+                    html = parseTextDecorations(html);
+                    html = parseLinks(html);
+                    return html;
+                }
+
+                function renderContent(text) {
+                    const container = document.getElementById("content");
+                    container.innerHTML = parseMarkdown(text);
+
+                    renderMathInElement(container, {
+                        delimiters: [
+                            {left: "\\[", right: "\\]", display: true},
+                            {left: "\\(", right: "\\)", display: false}
+                        ]
+                    });
+                }
+            </script>
+        </body>
+    </html>
+"""
+
+
 class PlannerApp(QtWidgets.QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Blog Post Interface")
-        self.resize(600, 800)
+        self.resize(1200, 800)
 
-        vbox = QtWidgets.QVBoxLayout(self)
+        hbox = QtWidgets.QHBoxLayout(self)
         form = QtWidgets.QFormLayout()
-        vbox.addLayout(form)
+        hbox.addLayout(form)
 
         self.doc_id_input = QtWidgets.QLineEdit()
         self.title_input = QtWidgets.QLineEdit()
@@ -29,10 +120,24 @@ class PlannerApp(QtWidgets.QWidget):
         form.addRow("Body", self.body_input)
         form.addRow("", self.save_btn)
         form.addRow("", self.load_btn)
-        vbox.addWidget(self.status_label)
+        form.addRow("", self.status_label)
 
         self.save_btn.clicked.connect(self.save_document)
         self.load_btn.clicked.connect(self.load_document)
+
+        self.body_input.textChanged.connect(self.render_markdown)
+
+        render_box = QtWidgets.QFormLayout()
+        hbox.addLayout(render_box)
+
+        self.rendered_label = QtWidgets.QLabel("Rendered Markdown will appear here.")
+        render_box.addRow(self.rendered_label)
+
+        self.web = QWebEngineView()
+        self.web.setHtml(HTML_TEMPLATE)
+        self.web.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
+        render_box.addRow(self.web)
+
 
     def save_document(self):
         data = { 'title': self.title_input.text(), 'body': self.body_input.toPlainText() }
@@ -78,7 +183,12 @@ class PlannerApp(QtWidgets.QWidget):
         except Exception as e:
             self.status_label.setText(f"Error: {e}")
 
-# ——— Run App ———
+    def render_markdown(self):
+        latex_str = self.body_input.toPlainText()
+        # print("Rendering LaTeX:", latex_str)
+        js = f"renderContent({latex_str!r});"
+        self.web.page().runJavaScript(js)
+
 if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)
     planner = PlannerApp()

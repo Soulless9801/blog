@@ -33,3 +33,19 @@ Body - String
 Timestamp - Timestamp Object
 
 Updated - Timestamp Object
+
+## Credits
+
+### Mathematical Typesetting
+
+- [Katex](github.com/KaTeX/KaTeX)
+
+### UI Render
+
+- PyQt5
+- PyQt5WebEngine
+
+### APIs
+
+- Firebase
+- Google APIs
