@@ -26,18 +26,16 @@ To install the required libraries, run the following command
 pip install -r requirements.txt
 ```
 
-## Post Format:
+## Post Format
 
 ```json
-[
-    {
-        'id': Document ID (String),
-        'title': Post Title (String),
-        'body': Post Content (String),
-        'timestamp': Creation Timestamp (UTC String),
-        'updated': Last Updated Timestamp (UTC String)
-    }
-]
+{
+    'id': Document ID (String),
+    'title': Post Title (String),
+    'body': Post Content (String),
+    'timestamp': Creation Timestamp (UTC String),
+    'updated': Last Updated Timestamp (UTC String)
+}
 ```
 
 ## Credits
