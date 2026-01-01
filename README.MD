@@ -1,12 +1,16 @@
-# Blog Firestore Interface
+# Firestore Utilities
 
 ## Requirements
 
-A `service_account.json` containing the admin service account key
+A `service_account.json` file containing the admin service account key used by `interface.py`.
+
+A `.env` file containing the variable(s) `LOCAL_PATH` denoting the JSON file where `write.py` will write data to.
 
 ## Description
 
-You can choose to Load and Update pre-existing posts, as well as Create and Store new ones. Automatically stores/updates creation time and last time updated. 
+You can choose to load and update pre-existing posts, as well as create and store new ones to a Firebase Firestore. Automatically creates/updates creation time and last time updated. 
+
+Supports reading the current datastore and writing data to a local JSON file.
 
 ## Instructions
 
@@ -24,15 +28,17 @@ pip install -r requirements.txt
 
 ## Post Format:
 
-Document ID (Blank = Random) - String
-
-Title - String
-
-Body - String
-
-Timestamp - Timestamp Object
-
-Updated - Timestamp Object
+```json
+[
+    {
+        'id': Document ID (String),
+        'title': Post Title (String),
+        'body': Post Content (String),
+        'timestamp': Creation Timestamp (UTC String),
+        'updated': Last Updated Timestamp (UTC String)
+    }
+]
+```
 
 ## Credits
 

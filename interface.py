@@ -9,6 +9,8 @@ creds = service_account.Credentials.from_service_account_file(
 )
 db = firestore.Client(credentials=creds)
 
+theme = 'light' # 'light' or 'dark'
+
 HTML_TEMPLATE = r"""
     <!DOCTYPE html>
     <html>
@@ -20,13 +22,22 @@ HTML_TEMPLATE = r"""
 
             <style>
                 body {
-                    margin: 0;
-                    padding: 8px;
-                    font-family: sans-serif;
+                    font-family: Arial, sans-serif;
+                    color: %s;
+                    background-color: %s;
+                    transition: background-color 0.3s, color 0.3s;
                 }
                 .textParserBlock {
                     display: block;
                     margin-bottom: 1em;
+                }
+                a {
+                    color: %s;
+                    text-decoration: none;
+                    transition: background-color 0.3s, color 0.3s;
+                }
+                a:hover {
+                    color: %s;
                 }
             </style>
         </head>
@@ -46,7 +57,7 @@ HTML_TEMPLATE = r"""
                 function parseBlockMath(html) {
                     return html.replace(
                         /\$\$([\s\S]+?)\$\$/g,
-                        (_, expr) => `<div class="math-block">\\[${expr.trim()}\\]</div>`
+                        (_, expr) => `<div>\\[${expr.trim()}\\]</div>`
                     );
                 }
 
@@ -95,7 +106,12 @@ HTML_TEMPLATE = r"""
             </script>
         </body>
     </html>
-"""
+""" % (
+    '#252525' if theme == 'light' else '#ffffff',
+    '#f9f5f1' if theme == 'light' else '#212529',
+    '#252525' if theme == 'light' else '#ffffff',
+    '#898989' if theme == 'light' else '#9b9b9b',
+)
 
 
 class PlannerApp(QtWidgets.QWidget):
@@ -157,7 +173,7 @@ class PlannerApp(QtWidgets.QWidget):
                 if existing:
                     self.status_label.setText("Title must be unique. Another post already uses this title.")
                     return
-                data['timestamp'] = firestore.SERVER_TIMESTAMP
+                data['timestamp'] = firestore.SERVER_TIMESTAMP #convert to UTC timestamp on save
                 data['updated'] = firestore.SERVER_TIMESTAMP
                 doc_ref = db.collection('posts').add(data)
                 new_id = doc_ref[1].id
@@ -175,8 +191,9 @@ class PlannerApp(QtWidgets.QWidget):
         try:
             doc = db.collection('posts').document(doc_id).get()
             if doc.exists:
-                self.title_input.setText(doc.to_dict().get('title'))
-                self.body_input.setPlainText(doc.to_dict().get('body'))
+                doc_dict = doc.to_dict()
+                self.title_input.setText(doc_dict.get('title'))
+                self.body_input.setPlainText(doc_dict.get('body'))  
                 self.status_label.setText(f"Loaded document “{doc_id}”.")
             else:
                 self.status_label.setText(f"No document found at “{doc_id}”.")
