@@ -42,7 +42,7 @@ pip install -r requirements.txt
 
 ### Mathematical Typesetting
 
-- [Katex](github.com/KaTeX/KaTeX)
+- [Katex](https://github.com/KaTeX/KaTeX)
 
 ### UI Render
 
