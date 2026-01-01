@@ -30,11 +30,11 @@ pip install -r requirements.txt
 
 ```json
 {
-    'id': Document ID (String),
-    'title': Post Title (String),
-    'body': Post Content (String),
-    'timestamp': Creation Timestamp (UTC String),
-    'updated': Last Updated Timestamp (UTC String)
+    "id": "Document ID (string)",
+    "title": "Post Title (string)",
+    "body": "Post Content (string)",
+    "timestamp": "Creation Timestamp (UTC string)",
+    "updated": "Last Updated Timestamp (UTC string)"
 }
 ```
 
@@ -46,10 +46,11 @@ pip install -r requirements.txt
 
 ### UI Render
 
-- PyQt5
-- PyQt5WebEngine
+- [PyQt5](https://www.riverbankcomputing.com/software/pyqt/)
 
-### APIs
+### Google APIs
 
-- Firebase
-- Google APIs
+- [firebase](https://github.com/googleapis/python-firestore)
+- [service_account](https://github.com/googleapis/google-auth-library-python)
+
+All third-party software are used in accordance with their respective licenses as listed on project websites or repositories.
