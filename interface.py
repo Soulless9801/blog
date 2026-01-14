@@ -1,8 +1,13 @@
 import sys
+import argparse
 from PyQt5 import QtWidgets
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from google.cloud import firestore
 from google.oauth2 import service_account
+
+parser = argparse.ArgumentParser(description='Firestore Interface')
+parser.add_argument('--collection', type=str, help='collection name')
+args = parser.parse_args()
 
 creds = service_account.Credentials.from_service_account_file(
     'service_account.json'
@@ -114,10 +119,13 @@ HTML_TEMPLATE = r"""
 )
 
 
-class PlannerApp(QtWidgets.QWidget):
-    def __init__(self):
+class CollectionEditorApp(QtWidgets.QWidget):
+    def __init__(self, collection):
         super().__init__()
-        self.setWindowTitle("Blog Post Interface")
+
+        self.collection = collection
+
+        self.setWindowTitle("Firestore Interface")
         self.resize(1200, 800)
 
         hbox = QtWidgets.QHBoxLayout(self)
@@ -146,7 +154,7 @@ class PlannerApp(QtWidgets.QWidget):
         render_box = QtWidgets.QFormLayout()
         hbox.addLayout(render_box)
 
-        self.rendered_label = QtWidgets.QLabel("Rendered Markdown will appear here.")
+        self.rendered_label = QtWidgets.QLabel("Rendered Body Markdown Below")
         render_box.addRow(self.rendered_label)
 
         self.web = QWebEngineView()
@@ -156,7 +164,7 @@ class PlannerApp(QtWidgets.QWidget):
 
 
     def save_document(self):
-        data = { 'title': self.title_input.text(), 'body': self.body_input.toPlainText() }
+        data = { 'title': self.title_input.text(), 'body': self.body_input.toPlainText().replace("\n\n", "\n\\n\n") }
         doc_id = self.doc_id_input.text().strip()
 
         if not ''.join(data['title'].split(' ')) or not ''.join(data['body'].split(' ')):
@@ -166,16 +174,16 @@ class PlannerApp(QtWidgets.QWidget):
         try:
             if doc_id:
                 data['updated'] = firestore.SERVER_TIMESTAMP
-                db.collection('posts').document(doc_id).set(data, merge=True)
+                db.collection(self.collection).document(doc_id).set(data, merge=True)
                 self.status_label.setText(f"Updated document “{doc_id}”.")
             else:
-                existing = db.collection('posts').where('title', '==', data['title']).get()
+                existing = db.collection(self.collection).where('title', '==', data['title']).get()
                 if existing:
                     self.status_label.setText("Title must be unique. Another post already uses this title.")
                     return
-                data['timestamp'] = firestore.SERVER_TIMESTAMP #convert to UTC timestamp on save
+                data['created'] = firestore.SERVER_TIMESTAMP
                 data['updated'] = firestore.SERVER_TIMESTAMP
-                doc_ref = db.collection('posts').add(data)
+                doc_ref = db.collection(self.collection).add(data)
                 new_id = doc_ref[1].id
                 self.doc_id_input.setText(new_id)
                 self.status_label.setText(f"Created new doc with ID “{new_id}”.")
@@ -189,11 +197,11 @@ class PlannerApp(QtWidgets.QWidget):
             return
 
         try:
-            doc = db.collection('posts').document(doc_id).get()
+            doc = db.collection(self.collection).document(doc_id).get()
             if doc.exists:
                 doc_dict = doc.to_dict()
                 self.title_input.setText(doc_dict.get('title'))
-                self.body_input.setPlainText(doc_dict.get('body'))  
+                self.body_input.setPlainText(doc_dict.get('body').replace("\n\\n\n", "\n\n"))
                 self.status_label.setText(f"Loaded document “{doc_id}”.")
             else:
                 self.status_label.setText(f"No document found at “{doc_id}”.")
@@ -201,13 +209,13 @@ class PlannerApp(QtWidgets.QWidget):
             self.status_label.setText(f"Error: {e}")
 
     def render_markdown(self):
-        latex_str = self.body_input.toPlainText()
+        latex_str = self.body_input.toPlainText().replace("\n\n", "\n\\n\n")
         # print("Rendering LaTeX:", latex_str)
         js = f"renderContent({latex_str!r});"
         self.web.page().runJavaScript(js)
 
 if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)
-    planner = PlannerApp()
-    planner.show()
+    collection_editor_app = CollectionEditorApp(collection=args.collection)
+    collection_editor_app.show()
     sys.exit(app.exec_())

@@ -2,40 +2,57 @@
 
 ## Requirements
 
-A `service_account.json` file containing the admin service account key used by `interface.py`.
-
-A `.env` file containing the variable(s) `LOCAL_PATH` denoting the JSON file where `write.py` will write data to.
+A `service_account.json` file containing the Firestore admin service account key used by `interface.py` and `problems.py`.
 
 ## Description
 
-You can choose to load and update pre-existing posts, as well as create and store new ones to a Firebase Firestore. Automatically creates/updates creation time and last time updated. 
+Load, update, and create Firestore documents containing data intended to be used in a blog format. Data includes title, body text, creation and modification timestamps, and a code snippet. 
 
-Supports reading the current datastore and writing data to a local JSON file.
+Additionally write data to a local JSON file.
 
 ## Instructions
 
-### Prerequisites
-
-Python3
-
 ### Installation
 
-To install the required libraries, run the following command
+To install the required libraries, run the following commands
 
 ```
+npm install
 pip install -r requirements.txt
 ```
 
-## Post Format
+## Field Description
 
 ```json
 {
     "id": "Document ID (string)",
     "title": "Post Title (string)",
     "body": "Post Content (string)",
-    "timestamp": "Creation Timestamp (UTC string)",
-    "updated": "Last Updated Timestamp (UTC string)"
+    "created": "Creation Time (Timestamp)",
+    "updated": "Last Updated (Timestamp)",
+    "submission": "Raw Code (string, optional)",
+    "language": "Code Language (string, optional)", 
 }
+```
+
+## Usage
+
+To perform operations on normal data (title, body, timestamps) run
+
+```
+python3 interface.py --collection COLLECTION_NAME
+```
+
+To perform operations with code data (optional) run
+
+```
+python3 problems.py --collection COLLECTION_NAME
+```
+
+To write collection data to a local file run
+
+```
+python3 write.py --collection COLLECTION_NAME --path LOCAL_PATH
 ```
 
 ## Credits
@@ -43,6 +60,10 @@ pip install -r requirements.txt
 ### Mathematical Typesetting
 
 - [Katex](https://github.com/KaTeX/KaTeX)
+
+### Syntax Highlighting
+
+- [Shiki](https://github.com/shikijs/shiki)
 
 ### UI Render
 
