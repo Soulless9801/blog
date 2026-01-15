@@ -8,7 +8,7 @@ from check import check_collection, create_document, load_document, update_docum
 
 parser = argparse.ArgumentParser(description='Firestore Interface')
 parser.add_argument('--collection', type=str, help='collection name')
-parser.add_argument('--theme', type=str, choices=['light', 'dark'], default='light', help='css theme')
+parser.add_argument('--theme', type=str, choices=['light', 'dark'], default='dark', help='css theme')
 args = parser.parse_args()
 
 theme = args.theme

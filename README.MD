@@ -14,7 +14,7 @@ Additionally write data to a local JSON file.
 
 ### Installation
 
-To install the required libraries, run the following commands
+To install the required libraries, run the following commands (pip3 required)
 
 ```
 npm install
