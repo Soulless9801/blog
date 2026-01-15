@@ -4,6 +4,7 @@ node_modules/
 # Python #
 .venv
 cleanse.py
+__pycache__/
 
 # Service Account #
 service_account.json

@@ -1,18 +1,17 @@
 import sys
 import argparse
+import subprocess
 
 from PyQt5 import QtWidgets, QtCore
+from PyQt5.QtWebEngineWidgets import QWebEngineView
+
 from google.cloud import firestore
-from google.oauth2 import service_account
+
+from check import check_collection, update_document, create_document, load_document, require_fields
 
 parser = argparse.ArgumentParser(description='Firestore Interface')
 parser.add_argument('--collection', type=str, help='collection name')
 args = parser.parse_args()
-
-creds = service_account.Credentials.from_service_account_file(
-    'service_account.json'
-)
-db = firestore.Client(credentials=creds)
 
 class SolutionEditorApp(QtWidgets.QWidget):
     def __init__(self, collection):
@@ -63,8 +62,7 @@ class SolutionEditorApp(QtWidgets.QWidget):
 
         self.highlighted_label = QtWidgets.QLabel("Highlighted Code Below")
 
-        self.code_viewer = QtWidgets.QTextEdit()
-        self.code_viewer.setReadOnly(True)
+        self.code_viewer = QWebEngineView()
         self.code_viewer.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)        
 
         highlight_box.addRow(self.highlighted_label)
@@ -78,38 +76,37 @@ class SolutionEditorApp(QtWidgets.QWidget):
             self.status_label.setText("Empty code") # all whitespace or nothing
             return
 
-        try:
-            if doc_id:
-                data['updated'] = firestore.SERVER_TIMESTAMP
-                db.collection(self.collection).document(doc_id).set(data, merge=True)
-                self.status_label.setText(f"Updated document “{doc_id}”.")
-            else:
-                data['created'] = firestore.SERVER_TIMESTAMP
-                data['updated'] = firestore.SERVER_TIMESTAMP
-                doc_ref = db.collection(self.collection).add(data)
-                new_id = doc_ref[1].id
-                self.doc_id_input.setText(new_id)
-                self.status_label.setText(f"Created new doc with ID “{new_id}”.")
-        except Exception as e:
-            self.status_label.setText(f"Error: {e}")
+        if doc_id:
+            data['updated'] = firestore.SERVER_TIMESTAMP
+            update_document(self.collection, doc_id, data)
+            self.status_label.setText(f"Updated \"{doc_id}\"")
+        else:
+            data['created'] = firestore.SERVER_TIMESTAMP
+            data['updated'] = firestore.SERVER_TIMESTAMP
+            new_id = create_document(self.collection, data)[1].id
+            self.doc_id_input.setText(new_id)
+            self.status_label.setText(f"Created \"{new_id}\"")
 
     def load_document(self):
         doc_id = self.doc_id_input.text().strip()
+
         if not doc_id:
-            self.status_label.setText("Please enter a Document ID to load.")
+            self.status_label.setText("Enter a Document ID")
             return
 
-        try:
-            doc = db.collection(self.collection).document(doc_id).get()
-            if doc.exists:
-                doc_dict = doc.to_dict()
-                self.body_input.setPlainText(doc_dict.get('submission').encode('utf-8').decode('unicode_escape'))
-                self.language_input.setCurrentText(doc_dict.get('language', 'python'))
-                self.status_label.setText(f"Loaded document “{doc_id}”.")
-            else:
-                self.status_label.setText(f"No document found at “{doc_id}”.")
-        except Exception as e:
-            self.status_label.setText(f"Error: {e}")
+        doc_dict = load_document(self.collection, doc_id)
+
+        if doc_dict is None:
+            self.status_label.setText(f"\"{doc_id}\" does not exist.")
+            return
+        
+        if not require_fields(doc_dict, ['submission', 'language']):
+            self.status_label.setText(f"\"{doc_id}\" is missing required fields.")
+            return
+
+        self.body_input.setPlainText(doc_dict.get('submission').encode('utf-8').decode('unicode_escape'))
+        self.language_input.setCurrentText(doc_dict.get('language', 'python'))
+        self.status_label.setText(f"Loaded \"{doc_id}\".")
     
     def start_highlight_timer(self):
         self.highlight_timer.start()
@@ -119,20 +116,41 @@ class SolutionEditorApp(QtWidgets.QWidget):
         code = self.body_input.toPlainText()
         language = self.language_input.currentText()
 
-        import subprocess
-        try:
-            result = subprocess.run(
-                ['node', 'highlight.js', code, language],
-                capture_output=True,
-                text=True,
-                check=True
-            )
-            self.code_viewer.setHtml(result.stdout)
-        except subprocess.CalledProcessError as e:
-            print("Error during highlighting:", e.stderr)
+        result = subprocess.run(
+            ['node', 'highlight.js', code, language],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+
+        # print(result.stdout)  # For debugging purposes
+
+        html = f"""
+            <html>
+                <head>
+                    <style>
+                        body {{
+                            tab-size: 4;
+                            font-family: 'Fira Code', monospace;
+                        }}
+                    </style>
+                </head>
+                <body>
+                    {result.stdout}
+                </body>
+            </html>
+        """
+
+        print(html)  # For debugging purposes
+
+        self.code_viewer.setHtml(html)
 
 if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)
+    if not check_collection(args.collection):
+        print(check_collection(args.collection))
+        print(f"\"{args.collection}\" collection does not exist.")
+        sys.exit(1)
     solution_editor_app = SolutionEditorApp(collection=args.collection)
     solution_editor_app.show()
     sys.exit(app.exec_())

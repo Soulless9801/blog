@@ -3,18 +3,15 @@ import argparse
 from PyQt5 import QtWidgets
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from google.cloud import firestore
-from google.oauth2 import service_account
+
+from check import check_collection, create_document, load_document, update_document, require_fields
 
 parser = argparse.ArgumentParser(description='Firestore Interface')
 parser.add_argument('--collection', type=str, help='collection name')
+parser.add_argument('--theme', type=str, choices=['light', 'dark'], default='light', help='css theme')
 args = parser.parse_args()
 
-creds = service_account.Credentials.from_service_account_file(
-    'service_account.json'
-)
-db = firestore.Client(credentials=creds)
-
-theme = 'light' # 'light' or 'dark'
+theme = args.theme
 
 HTML_TEMPLATE = r"""
     <!DOCTYPE html>
@@ -171,24 +168,16 @@ class CollectionEditorApp(QtWidgets.QWidget):
             self.status_label.setText("Empty title or body")
             return
 
-        try:
-            if doc_id:
-                data['updated'] = firestore.SERVER_TIMESTAMP
-                db.collection(self.collection).document(doc_id).set(data, merge=True)
-                self.status_label.setText(f"Updated document “{doc_id}”.")
-            else:
-                existing = db.collection(self.collection).where('title', '==', data['title']).get()
-                if existing:
-                    self.status_label.setText("Title must be unique. Another post already uses this title.")
-                    return
-                data['created'] = firestore.SERVER_TIMESTAMP
-                data['updated'] = firestore.SERVER_TIMESTAMP
-                doc_ref = db.collection(self.collection).add(data)
-                new_id = doc_ref[1].id
-                self.doc_id_input.setText(new_id)
-                self.status_label.setText(f"Created new doc with ID “{new_id}”.")
-        except Exception as e:
-            self.status_label.setText(f"Error: {e}")
+        if doc_id:
+            data['updated'] = firestore.SERVER_TIMESTAMP
+            update_document(self.collection, doc_id, data)
+            self.status_label.setText(f"Updated \"{doc_id}\"")
+        else:
+            data['created'] = firestore.SERVER_TIMESTAMP
+            data['updated'] = firestore.SERVER_TIMESTAMP
+            new_id = create_document(self.collection, data)[1].id
+            self.doc_id_input.setText(new_id)
+            self.status_label.setText(f"Created new doc with ID \"{new_id}\"")
 
     def load_document(self):
         doc_id = self.doc_id_input.text().strip()
@@ -196,26 +185,30 @@ class CollectionEditorApp(QtWidgets.QWidget):
             self.status_label.setText("Please enter a Document ID to load.")
             return
 
-        try:
-            doc = db.collection(self.collection).document(doc_id).get()
-            if doc.exists:
-                doc_dict = doc.to_dict()
-                self.title_input.setText(doc_dict.get('title'))
-                self.body_input.setPlainText(doc_dict.get('body').replace("\n\\n\n", "\n\n"))
-                self.status_label.setText(f"Loaded document “{doc_id}”.")
-            else:
-                self.status_label.setText(f"No document found at “{doc_id}”.")
-        except Exception as e:
-            self.status_label.setText(f"Error: {e}")
+        doc_dict = load_document(self.collection, doc_id)
+
+        if doc_dict is None:
+            self.status_label.setText(f"\"{doc_id}\" does not exist")
+            return
+        
+        if not require_fields(doc_dict, ['title', 'body']):
+            self.status_label.setText(f"\"{doc_id}\" is missing required fields")
+            return
+        
+        self.title_input.setText(doc_dict.get('title'))
+        self.body_input.setPlainText(doc_dict.get('body').replace("\n\\n\n", "\n\n"))
+        self.status_label.setText(f"Loaded document \"{doc_id}\"")
 
     def render_markdown(self):
         latex_str = self.body_input.toPlainText().replace("\n\n", "\n\\n\n")
-        # print("Rendering LaTeX:", latex_str)
         js = f"renderContent({latex_str!r});"
         self.web.page().runJavaScript(js)
 
 if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)
+    if not check_collection(args.collection):
+        print(f"\"{args.collection}\" does not exist.")
+        sys.exit(1)
     collection_editor_app = CollectionEditorApp(collection=args.collection)
     collection_editor_app.show()
     sys.exit(app.exec_())
