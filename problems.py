@@ -141,7 +141,7 @@ class SolutionEditorApp(QtWidgets.QWidget):
             </html>
         """
 
-        print(html)  # For debugging purposes
+        # print(html)  # for debugging purposes
 
         self.code_viewer.setHtml(html)
 
