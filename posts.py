@@ -1,6 +1,6 @@
 import sys
 import argparse
-from PyQt5 import QtWidgets
+from PyQt5 import QtWidgets, QtCore
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from google.cloud import firestore
 
@@ -117,25 +117,31 @@ HTML_TEMPLATE = r"""
 
 
 class CollectionEditorApp(QtWidgets.QWidget):
-    def __init__(self, collection):
+
+    collectionCreated = QtCore.pyqtSignal(object) # not this class's problem anymore
+
+    def __init__(self, collection=None, doc_id=None):
         super().__init__()
 
         self.collection = collection
 
         self.setWindowTitle("Firestore Interface")
-        self.resize(1200, 800)
 
         hbox = QtWidgets.QHBoxLayout(self)
         form = QtWidgets.QFormLayout()
-        hbox.addLayout(form)
+        hbox.addLayout(form, 1)
 
+        self.collection_label = QtWidgets.QLabel(self.collection) if collection else QtWidgets.QLineEdit()
         self.doc_id_input = QtWidgets.QLineEdit()
+        if doc_id:
+            self.doc_id_input.setText(doc_id)
         self.title_input = QtWidgets.QLineEdit()
         self.body_input = QtWidgets.QPlainTextEdit()
-        self.status_label = QtWidgets.QLabel()
         self.save_btn = QtWidgets.QPushButton("Save / Update")
         self.load_btn = QtWidgets.QPushButton("Load by ID")
+        self.status_label = QtWidgets.QLabel(f"Editing \"{self.collection}\"" if self.collection else "Creating new collection")
 
+        form.addRow("Collection", self.collection_label)
         form.addRow("Document ID", self.doc_id_input)
         form.addRow("Title", self.title_input)
         form.addRow("Body", self.body_input)
@@ -147,45 +153,54 @@ class CollectionEditorApp(QtWidgets.QWidget):
         self.load_btn.clicked.connect(self.load_document)
 
         self.body_input.textChanged.connect(self.render_markdown)
-
         render_box = QtWidgets.QFormLayout()
-        hbox.addLayout(render_box)
+        hbox.addLayout(render_box, 1)
 
         self.rendered_label = QtWidgets.QLabel("Rendered Body Markdown Below")
         render_box.addRow(self.rendered_label)
 
         self.web = QWebEngineView()
         self.web.setHtml(HTML_TEMPLATE)
+        if doc_id:
+            self.web.loadFinished.connect(self.load_document)
         self.web.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
         render_box.addRow(self.web)
 
-
     def save_document(self):
         data = { 'title': self.title_input.text(), 'body': self.body_input.toPlainText().replace("\n\n", "\n\\n\n") }
+        col_id = self.collection if self.collection else self.collection_label.text().strip()
         doc_id = self.doc_id_input.text().strip()
 
         if not ''.join(data['title'].split(' ')) or not ''.join(data['body'].split(' ')):
             self.status_label.setText("Empty title or body")
             return
+        
+        if not self.collection: # new collection page
+            if not col_id:
+                self.status_label.setText("Please enter a Collection ID to create")
+                return
 
-        if doc_id:
-            data['updated'] = firestore.SERVER_TIMESTAMP
-            update_document(self.collection, doc_id, data)
-            self.status_label.setText(f"Updated \"{doc_id}\"")
-        else:
+        data['updated'] = firestore.SERVER_TIMESTAMP
+
+        if not update_document(col_id, doc_id, data):
             data['created'] = firestore.SERVER_TIMESTAMP
-            data['updated'] = firestore.SERVER_TIMESTAMP
-            new_id = create_document(self.collection, data)[1].id
+            new_id = create_document(col_id, doc_id, data)
             self.doc_id_input.setText(new_id)
             self.status_label.setText(f"Created new doc with ID \"{new_id}\"")
+            if not self.collection:
+                self.collectionCreated.emit({"id": col_id, "doc_id": new_id})
+                self.clear_fields()
+        else:
+            self.status_label.setText(f"Updated doc with ID \"{doc_id}\"")
 
     def load_document(self):
+        col_id = self.collection if self.collection else self.collection_label.text().strip()
         doc_id = self.doc_id_input.text().strip()
         if not doc_id:
             self.status_label.setText("Please enter a Document ID to load.")
             return
 
-        doc_dict = load_document(self.collection, doc_id)
+        doc_dict = load_document(col_id, doc_id)
 
         if doc_dict is None:
             self.status_label.setText(f"\"{doc_id}\" does not exist")
@@ -198,6 +213,13 @@ class CollectionEditorApp(QtWidgets.QWidget):
         self.title_input.setText(doc_dict.get('title'))
         self.body_input.setPlainText(doc_dict.get('body').replace("\n\\n\n", "\n\n"))
         self.status_label.setText(f"Loaded document \"{doc_id}\"")
+
+    def clear_fields(self):
+        self.collection_label.setText("")
+        self.doc_id_input.setText("")
+        self.title_input.setText("")
+        self.body_input.setPlainText("")
+        self.status_label.setText("")
 
     def render_markdown(self):
         latex_str = self.body_input.toPlainText().replace("\n\n", "\n\\n\n")

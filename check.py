@@ -7,12 +7,28 @@ creds = service_account.Credentials.from_service_account_file(
 
 db = firestore.Client(credentials=creds)
 
+def get_collections():
+    return db.collections()
+
 def check_collection(collection_name): # check if collection exists
-    collections = db.collections()
+    collections = get_collections()
     for collection in collections:
         if collection.id == collection_name:
             return True
     return False
+
+def validate_collection(collection_name, required_fields): # validate collection structure
+    if not check_collection(collection_name):
+        return False
+    docs = db.collection(collection_name).stream()
+    for doc in docs:
+        doc_dict = doc.to_dict()
+        for field in required_fields:
+            if field not in doc_dict:
+                return False
+            if not isinstance(doc_dict[field], required_fields[field]):
+                return False
+    return True
 
 def load_documents(collection_name): # load all documents from collection
     if not check_collection(collection_name):
@@ -20,7 +36,17 @@ def load_documents(collection_name): # load all documents from collection
     docs = db.collection(collection_name).stream()
     return [{'id': doc.id, **doc.to_dict()} for doc in docs]
 
+def create_document(collection_name, doc_id, data): # create new document in collection
+    if not doc_id:
+        return db.collection(collection_name).add(data)[1].id
+    db.collection(collection_name).document(doc_id).set(data)
+    return doc_id
+
 def load_document(collection_name, document_id): # load document from collection
+    if not check_collection(collection_name):
+        return None
+    if not document_id:
+        return None
     doc = db.collection(collection_name).document(document_id).get()
     if not doc.exists:
         return None
@@ -33,10 +59,9 @@ def update_document(collection_name, document_id, data): # update document in co
     db.collection(collection_name).document(document_id).set(data, merge=True)
     return True
 
-def create_document(collection_name, data): # create new document in collection
-    if not check_collection(collection_name):
-        return False
-    return db.collection(collection_name).add(data)
+def delete_document(collection_name, document_id):
+    # TODO
+    return
 
 def require_fields(dict, fields):
     for field in fields:

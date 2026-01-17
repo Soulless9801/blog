@@ -83,7 +83,7 @@ class SolutionEditorApp(QtWidgets.QWidget):
         else:
             data['created'] = firestore.SERVER_TIMESTAMP
             data['updated'] = firestore.SERVER_TIMESTAMP
-            new_id = create_document(self.collection, data)[1].id
+            new_id = create_document(self.collection, doc_id, data)[1].id
             self.doc_id_input.setText(new_id)
             self.status_label.setText(f"Created \"{new_id}\"")
 
