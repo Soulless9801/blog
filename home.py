@@ -12,13 +12,13 @@ from check import get_collections, validate_collection
 collectionSchema = {
     "title": str,
     "body": str,
-    "created": Timestamp,
+    "created": Timestamp,   
     "updated": Timestamp
 }
 
 class CollectionMenu(QtWidgets.QWidget):
 
-    pageRequested = QtCore.pyqtSignal(str)
+    pageRequested = QtCore.pyqtSignal(object)
 
     def __init__(self, pages):
         super().__init__()
@@ -39,7 +39,7 @@ class CollectionMenu(QtWidgets.QWidget):
 
 class CollectionPage(QtWidgets.QWidget):
 
-    def __init__(self):
+    def __init__(self, types):
         super().__init__()
 
         self.resize(1200, 800)
@@ -48,14 +48,14 @@ class CollectionPage(QtWidgets.QWidget):
 
         self.pages = {}
         self.routes = []
-
+    
         for collection in get_collections():
             collection_name = collection.id
             if not validate_collection(collection_name, collectionSchema):
                 continue
             self.pages[collection_name] = CollectionEditorApp(collection_name)
             self.stack.addWidget(self.pages[collection_name])
-            self.routes.append({ "label": collection_name.capitalize(), "route": collection_name })
+            self.routes.append({ "label": collection_name, "route": collection_name })
 
         self.pages["new"] = CollectionEditorApp(None)
         self.stack.addWidget(self.pages["new"])
@@ -83,9 +83,9 @@ class CollectionPage(QtWidgets.QWidget):
         page = msg["id"]
         self.pages[page] = CollectionEditorApp(page, msg["doc_id"])
         self.stack.addWidget(self.pages[page])
-        self.routes.append({ "label": page.capitalize(), "route": page })
+        self.routes.append({ "label": page, "route": page })
 
-        self.menu.add({ "label": page.capitalize(), "route": page })
+        self.menu.add({ "label": page, "route": page })
 
         self.stack.setCurrentWidget(self.pages[page])
 

@@ -4,123 +4,117 @@ from PyQt5 import QtWidgets, QtCore
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from google.cloud import firestore
 
-from check import check_collection, create_document, load_document, update_document, require_fields
+from check import check_collection, create_document, load_document, update_document
 
-parser = argparse.ArgumentParser(description='Firestore Interface')
-parser.add_argument('--collection', type=str, help='collection name')
-parser.add_argument('--theme', type=str, choices=['light', 'dark'], default='dark', help='css theme')
-args = parser.parse_args()
+def gen_html(theme):
 
-theme = args.theme
+    return r"""
+        <!DOCTYPE html>
+        <html>
+            <head>
+                <meta charset="utf-8" />
+                <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.css">
+                <script src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.js"></script>
+                <script src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/contrib/auto-render.min.js"></script>
 
-HTML_TEMPLATE = r"""
-    <!DOCTYPE html>
-    <html>
-        <head>
-            <meta charset="utf-8" />
-            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.css">
-            <script src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.js"></script>
-            <script src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/contrib/auto-render.min.js"></script>
+                <style>
+                    body {
+                        font-family: Arial, sans-serif;
+                        color: %s;
+                        background-color: %s;
+                        transition: background-color 0.3s, color 0.3s;
+                    }
+                    .textParserBlock {
+                        display: block;
+                        margin-bottom: 1em;
+                    }
+                    a {
+                        color: %s;
+                        text-decoration: none;
+                        transition: background-color 0.3s, color 0.3s;
+                    }
+                    a:hover {
+                        color: %s;
+                    }
+                </style>
+            </head>
 
-            <style>
-                body {
-                    font-family: Arial, sans-serif;
-                    color: %s;
-                    background-color: %s;
-                    transition: background-color 0.3s, color 0.3s;
-                }
-                .textParserBlock {
-                    display: block;
-                    margin-bottom: 1em;
-                }
-                a {
-                    color: %s;
-                    text-decoration: none;
-                    transition: background-color 0.3s, color 0.3s;
-                }
-                a:hover {
-                    color: %s;
-                }
-            </style>
-        </head>
+            <body>
+                <div id="content"></div>
 
-        <body>
-            <div id="content"></div>
+                <script>
 
-            <script>
+                    function parseNewlines(text) {
+                        return text
+                        .split('\\n')
+                        .map(p => `<p class="textParserBlock">${p}</p>`)
+                        .join("");
+                    }
 
-                function parseNewlines(text) {
-                    return text
-                    .split('\\n')
-                    .map(p => `<p class="textParserBlock">${p}</p>`)
-                    .join("");
-                }
+                    function parseBlockMath(html) {
+                        return html.replace(
+                            /\$\$([\s\S]+?)\$\$/g,
+                            (_, expr) => `<div>\\[${expr.trim()}\\]</div>`
+                        );
+                    }
 
-                function parseBlockMath(html) {
-                    return html.replace(
-                        /\$\$([\s\S]+?)\$\$/g,
-                        (_, expr) => `<div>\\[${expr.trim()}\\]</div>`
-                    );
-                }
+                    function parseInlineMath(html) {
+                        return html.replace(
+                            /\$(.+?)\$/g,
+                            (_, expr) => `\\(${expr}\\)`
+                        );
+                    }
 
-                function parseInlineMath(html) {
-                    return html.replace(
-                        /\$(.+?)\$/g,
-                        (_, expr) => `\\(${expr}\\)`
-                    );
-                }
+                    function parseTextDecorations(html) {
+                        return html
+                        .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+                        .replace(/\*(.+?)\*/g, "<em>$1</em>")
+                        .replace(/__(.+?)__/g, "<u>$1</u>");
+                    }
 
-                function parseTextDecorations(html) {
-                    return html
-                    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-                    .replace(/\*(.+?)\*/g, "<em>$1</em>")
-                    .replace(/__(.+?)__/g, "<u>$1</u>");
-                }
+                    function parseLinks(html) {
+                        return html.replace(
+                            /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g,
+                            '<a href="$2" target="_blank">$1</a>'
+                        );
+                    }
 
-                function parseLinks(html) {
-                    return html.replace(
-                        /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g,
-                        '<a href="$2" target="_blank">$1</a>'
-                    );
-                }
+                    function parseMarkdown(text) {
+                        let html = text;
+                        html = parseNewlines(html);
+                        html = parseBlockMath(html);
+                        html = parseInlineMath(html);
+                        html = parseTextDecorations(html);
+                        html = parseLinks(html);
+                        return html;
+                    }
 
-                function parseMarkdown(text) {
-                    let html = text;
-                    html = parseNewlines(html);
-                    html = parseBlockMath(html);
-                    html = parseInlineMath(html);
-                    html = parseTextDecorations(html);
-                    html = parseLinks(html);
-                    return html;
-                }
+                    function renderContent(text) {
+                        const container = document.getElementById("content");
+                        container.innerHTML = parseMarkdown(text);
 
-                function renderContent(text) {
-                    const container = document.getElementById("content");
-                    container.innerHTML = parseMarkdown(text);
-
-                    renderMathInElement(container, {
-                        delimiters: [
-                            {left: "\\[", right: "\\]", display: true},
-                            {left: "\\(", right: "\\)", display: false}
-                        ]
-                    });
-                }
-            </script>
-        </body>
-    </html>
-""" % (
-    '#252525' if theme == 'light' else '#ffffff',
-    '#f9f5f1' if theme == 'light' else '#212529',
-    '#252525' if theme == 'light' else '#ffffff',
-    '#898989' if theme == 'light' else '#9b9b9b',
-)
-
+                        renderMathInElement(container, {
+                            delimiters: [
+                                {left: "\\[", right: "\\]", display: true},
+                                {left: "\\(", right: "\\)", display: false}
+                            ]
+                        });
+                    }
+                </script>
+            </body>
+        </html>
+    """ % (
+        '#252525' if theme == 'light' else '#ffffff',
+        '#f9f5f1' if theme == 'light' else '#212529',
+        '#252525' if theme == 'light' else '#ffffff',
+        '#898989' if theme == 'light' else '#9b9b9b',
+    )
 
 class CollectionEditorApp(QtWidgets.QWidget):
 
     collectionCreated = QtCore.pyqtSignal(object) # not this class's problem anymore
 
-    def __init__(self, collection=None, doc_id=None):
+    def __init__(self, collection=None, doc_id=None, theme='dark'):
         super().__init__()
 
         self.collection = collection
@@ -131,26 +125,34 @@ class CollectionEditorApp(QtWidgets.QWidget):
         form = QtWidgets.QFormLayout()
         hbox.addLayout(form, 1)
 
-        self.collection_label = QtWidgets.QLabel(self.collection) if collection else QtWidgets.QLineEdit()
+        self.collection_label = None
+        if not check_collection(self.collection): # if DNE, try to create it
+            self.collection_label = QtWidgets.QLineEdit(self.collection)
+            self.collection = None
+        else:
+            self.collection_label = QtWidgets.QLabel(self.collection)
         self.doc_id_input = QtWidgets.QLineEdit()
         if doc_id:
             self.doc_id_input.setText(doc_id)
         self.title_input = QtWidgets.QLineEdit()
         self.body_input = QtWidgets.QPlainTextEdit()
         self.save_btn = QtWidgets.QPushButton("Save / Update")
-        self.load_btn = QtWidgets.QPushButton("Load by ID")
-        self.status_label = QtWidgets.QLabel(f"Editing \"{self.collection}\"" if self.collection else "Creating new collection")
+        if self.collection:
+            self.load_btn = QtWidgets.QPushButton("Load by ID")
+        self.status_label = QtWidgets.QLabel("")
 
         form.addRow("Collection", self.collection_label)
         form.addRow("Document ID", self.doc_id_input)
         form.addRow("Title", self.title_input)
         form.addRow("Body", self.body_input)
         form.addRow("", self.save_btn)
-        form.addRow("", self.load_btn)
+        if self.collection:
+            form.addRow("", self.load_btn)
         form.addRow("", self.status_label)
 
         self.save_btn.clicked.connect(self.save_document)
-        self.load_btn.clicked.connect(self.load_document)
+        if self.collection:
+            self.load_btn.clicked.connect(self.load_document)
 
         self.body_input.textChanged.connect(self.render_markdown)
         render_box = QtWidgets.QFormLayout()
@@ -160,26 +162,33 @@ class CollectionEditorApp(QtWidgets.QWidget):
         render_box.addRow(self.rendered_label)
 
         self.web = QWebEngineView()
-        self.web.setHtml(HTML_TEMPLATE)
-        if doc_id:
-            self.web.loadFinished.connect(self.load_document)
+        self.htmlLoaded = False
+        self.web.loadFinished.connect(self.on_html_loaded)
+        self.web.setHtml(gen_html(theme))
         self.web.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
         render_box.addRow(self.web)
 
+    def on_html_loaded(self):
+        self.htmlLoaded = True
+        self.load_document()
+
     def save_document(self):
-        data = { 'title': self.title_input.text(), 'body': self.body_input.toPlainText().replace("\n\n", "\n\\n\n") }
+        if not self.htmlLoaded:
+            return
+        
         col_id = self.collection if self.collection else self.collection_label.text().strip()
-        doc_id = self.doc_id_input.text().strip()
+
+        if not col_id:
+            self.status_label.setText("Please enter a collection title to create")
+            return
+
+        data = { 'title': self.title_input.text(), 'body': self.body_input.toPlainText().replace("\n\n", "\n\\n\n") }
 
         if not ''.join(data['title'].split(' ')) or not ''.join(data['body'].split(' ')):
             self.status_label.setText("Empty title or body")
             return
-        
-        if not self.collection: # new collection page
-            if not col_id:
-                self.status_label.setText("Please enter a Collection ID to create")
-                return
 
+        doc_id = self.doc_id_input.text().strip()
         data['updated'] = firestore.SERVER_TIMESTAMP
 
         if not update_document(col_id, doc_id, data):
@@ -194,24 +203,29 @@ class CollectionEditorApp(QtWidgets.QWidget):
             self.status_label.setText(f"Updated doc with ID \"{doc_id}\"")
 
     def load_document(self):
-        col_id = self.collection if self.collection else self.collection_label.text().strip()
+        if not self.htmlLoaded:
+            return
+        
+        col_id = self.collection
+
+        if not col_id:
+            self.status_label.setText("Creating new collection")
+            return
+           
         doc_id = self.doc_id_input.text().strip()
+
         if not doc_id:
-            self.status_label.setText("Please enter a Document ID to load.")
+            self.status_label.setText("Please enter a Document ID")
             return
 
         doc_dict = load_document(col_id, doc_id)
 
         if doc_dict is None:
-            self.status_label.setText(f"\"{doc_id}\" does not exist")
+            self.status_label.setText(f"\"{doc_id}\" does not exist in \"{col_id}\"")
             return
         
-        if not require_fields(doc_dict, ['title', 'body']):
-            self.status_label.setText(f"\"{doc_id}\" is missing required fields")
-            return
-        
-        self.title_input.setText(doc_dict.get('title'))
-        self.body_input.setPlainText(doc_dict.get('body').replace("\n\\n\n", "\n\n"))
+        self.title_input.setText(doc_dict.get('title', ''))
+        self.body_input.setPlainText(doc_dict.get('body', '').replace("\n\\n\n", "\n\n"))
         self.status_label.setText(f"Loaded document \"{doc_id}\"")
 
     def clear_fields(self):
@@ -227,10 +241,17 @@ class CollectionEditorApp(QtWidgets.QWidget):
         self.web.page().runJavaScript(js)
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Firestore Interface')
+    parser.add_argument('--collection', type=str, help='collection name')
+    parser.add_argument('--document', type=str, default='',help='document id')
+    parser.add_argument('--theme', type=str, choices=['light', 'dark'], default='dark', help='css theme')
+    args = parser.parse_args()
+
+    collection = args.collection
+    doc_id = args.document
+    theme = args.theme
+
     app = QtWidgets.QApplication(sys.argv)
-    if not check_collection(args.collection):
-        print(f"\"{args.collection}\" does not exist.")
-        sys.exit(1)
-    collection_editor_app = CollectionEditorApp(collection=args.collection)
+    collection_editor_app = CollectionEditorApp(collection=collection, doc_id=doc_id, theme=theme)
     collection_editor_app.show()
     sys.exit(app.exec_())
