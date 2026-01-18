@@ -17,19 +17,6 @@ def check_collection(collection_name): # check if collection exists
             return True
     return False
 
-def validate_collection(collection_name, required_fields): # validate collection structure
-    if not check_collection(collection_name):
-        return False
-    docs = db.collection(collection_name).stream()
-    for doc in docs:
-        doc_dict = doc.to_dict()
-        for field in required_fields:
-            if field not in doc_dict:
-                return False
-            if not isinstance(doc_dict[field], required_fields[field]):
-                return False
-    return True
-
 def load_documents(collection_name): # load all documents from collection
     if not check_collection(collection_name):
         return None
@@ -63,8 +50,5 @@ def delete_document(collection_name, document_id):
     # TODO
     return
 
-def require_fields(dict, fields):
-    for field in fields:
-        if field not in dict:
-            return False
-    return True
+def get_timestamp():
+    return firestore.SERVER_TIMESTAMP

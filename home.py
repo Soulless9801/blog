@@ -1,20 +1,13 @@
 import sys
-from posts import CollectionEditorApp
-from problems import SolutionEditorApp
+from pages.posts import PostsPage
+from pages.problems import ProblemsPage
 from PyQt5 import QtWidgets, QtCore
 
 from datetime import datetime
 
 Timestamp = datetime
 
-from check import get_collections, validate_collection
-
-collectionSchema = {
-    "title": str,
-    "body": str,
-    "created": Timestamp,   
-    "updated": Timestamp
-}
+from pages.check import get_collections
 
 class CollectionMenu(QtWidgets.QWidget):
 
@@ -37,57 +30,84 @@ class CollectionMenu(QtWidgets.QWidget):
         btn.clicked.connect(lambda _, p=page["route"]: self.pageRequested.emit(p))
         self.layout.insertWidget(self.layout.count() - 2, btn) # add before new collection button
 
-class CollectionPage(QtWidgets.QWidget):
+class HomePage(QtWidgets.QWidget):
 
     def __init__(self, types):
         super().__init__()
 
         self.resize(1200, 800)
+        self.setWindowTitle("Firestore Interface")
+
+        layout = QtWidgets.QHBoxLayout(self)
+
+        menu = QtWidgets.QHBoxLayout()
+        menu.setContentsMargins(10, 10, 10, 10) # TODO styling
+
+        collection_menu = QtWidgets.QVBoxLayout()
+
+        collection_label = QtWidgets.QLabel("Collection Name")
+
+        collection_menu.addWidget(collection_label)
+
+        self.cbox = QtWidgets.QVBoxLayout()
+
+        for collection in get_collections():
+            btn = QtWidgets.QPushButton(collection.id)
+            btn.clicked.connect(lambda _, c=collection.id: self.refresh_page({"id": c}))
+            self.cbox.addWidget(btn)
+        
+        new_collection_btn = QtWidgets.QPushButton("+ New")
+        new_collection_btn.clicked.connect(lambda _: self.refresh_page({"id": None}))
+        self.cbox.addWidget(new_collection_btn)
+
+        self.cbox.addStretch()
+
+        collection_menu.addLayout(self.cbox)
+
+        menu.addLayout(collection_menu)
+
+        vbox = QtWidgets.QVBoxLayout()
 
         self.stack = QtWidgets.QStackedWidget()
 
         self.pages = {}
         self.routes = []
     
-        for collection in get_collections():
-            collection_name = collection.id
-            if not validate_collection(collection_name, collectionSchema):
-                continue
-            self.pages[collection_name] = CollectionEditorApp(collection_name)
-            self.stack.addWidget(self.pages[collection_name])
-            self.routes.append({ "label": collection_name, "route": collection_name })
-
-        self.pages["new"] = CollectionEditorApp(None)
-        self.stack.addWidget(self.pages["new"])
-        self.routes.append({ "label": "+ New", "route": "new" })
-
-        self.pages["new"].collectionCreated.connect(self.refresh_menu)
+        for type in types:
+            page = type()
+            self.pages[page.title] = page
+            self.stack.addWidget(page)
+            page.collectionCreated.connect(self.add_collection)
+            self.routes.append({ "label": page.title, "route": page.title })
         
-        self.menu_label = QtWidgets.QLabel("Collections")
+        type_label = QtWidgets.QLabel("Collection Types")
 
-        self.menu = CollectionMenu(self.routes)
+        self.type_menu = CollectionMenu(self.routes)
 
-        self.menu.pageRequested.connect(self.navigate)
+        self.type_menu.pageRequested.connect(self.navigate)
 
-        vbox = QtWidgets.QVBoxLayout()
-        vbox.addWidget(self.menu_label)
-        vbox.addWidget(self.menu)
+        vbox.addWidget(type_label)
+        vbox.addWidget(self.type_menu)
 
-        layout = QtWidgets.QHBoxLayout(self)
-        layout.addLayout(vbox)
-        layout.addWidget(self.stack)
+        menu.addLayout(vbox)
+
+        layout.addLayout(menu)
 
         self.stack.setCurrentWidget(self.pages[self.routes[0]["route"]])
+
+        layout.addWidget(self.stack)
     
-    def refresh_menu(self, msg):
-        page = msg["id"]
-        self.pages[page] = CollectionEditorApp(page, msg["doc_id"])
-        self.stack.addWidget(self.pages[page])
-        self.routes.append({ "label": page, "route": page })
+    def add_collection(self, msg):
+        btn = QtWidgets.QPushButton(msg.get("id"))
+        btn.clicked.connect(lambda _, c=msg: self.refresh_page({"id": c.get("id")}))
+        self.cbox.insertWidget(self.cbox.count() - 2, btn)
+        self.refresh_page(msg)
 
-        self.menu.add({ "label": page, "route": page })
-
-        self.stack.setCurrentWidget(self.pages[page])
+    def refresh_page(self, msg):
+        widget = self.stack.currentWidget()
+        widget.clear_fields()
+        widget.set_collection(msg)
+        widget.load_document()
 
     def navigate(self, route):
         page = self.pages.get(route)
@@ -96,7 +116,7 @@ class CollectionPage(QtWidgets.QWidget):
 
 if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
-    collection_page = CollectionPage()
-    collection_page.show()
+    home_page = HomePage([PostsPage, ProblemsPage])
+    home_page.show()
     sys.exit(app.exec_())
 

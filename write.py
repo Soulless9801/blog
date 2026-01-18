@@ -11,7 +11,7 @@ args = parser.parse_args()
 from google.cloud import firestore
 from google.oauth2 import service_account
 
-from check import check_collection, load_documents
+from pages.check import check_collection, load_documents
 
 creds = service_account.Credentials.from_service_account_file(
     'service_account.json'
