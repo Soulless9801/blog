@@ -1,3 +1,4 @@
+import uuid
 from PyQt5 import QtWidgets, QtCore
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 
@@ -13,11 +14,15 @@ class CollectionEditorPage(QtWidgets.QWidget):
 
     collectionCreated = QtCore.pyqtSignal(object) # not this class's problem anymore
 
-    def __init__(self, collection=None, doc_id=None, fields={}, theme='dark', title="Collection Editor"):
+    def __init__(self, collection=None, doc_id=None, fields={}, tags={}, intended_collections=[], theme='dark', title="Collection Editor"):
         super().__init__()
 
         # initialization
         self.theme = theme
+
+        self.tags = tags
+
+        self.intended = intended_collections
 
         self.title = title
 
@@ -43,15 +48,21 @@ class CollectionEditorPage(QtWidgets.QWidget):
 
         self.fields = fields
         self.field_widgets = {}
+        self.field_collection = {}
 
         # other fields
         for field, config in fields.items():
+            collections = [None] if 'collection' not in config else config['collection']
+            for collection in collections:
+                if collection not in self.field_collection:
+                    self.field_collection[collection] = []
+                self.field_collection[collection].append(field)
             widget = self._create_widget(config)
             self.field_widgets[field] = widget
             form.addRow(config.get('label', field), widget)
         
         # save button
-        self.save_btn = QtWidgets.QPushButton("Save / Update")
+        self.save_btn = QtWidgets.QPushButton("Create / Update")
         form.addRow("", self.save_btn)
         self.save_btn.clicked.connect(self.save_document)
 
@@ -83,6 +94,14 @@ class CollectionEditorPage(QtWidgets.QWidget):
         self.web.setHtml(self.gen_html())
         self.web.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
         render_box.addRow(self.web)
+
+    def message(self, msg, silent=False):
+        if hasattr(self, "status_label") and not silent:
+            print(msg)
+            self.status_label.setText(msg)
+
+    def warning(self, msg):
+        self.message(f"WARNING: {msg}", silent=False)
 
     def _create_widget(self, config):
         widget_type = config.get('type')
@@ -128,79 +147,122 @@ class CollectionEditorPage(QtWidgets.QWidget):
 
     def on_html_loaded(self):
         self.htmlLoaded = True
-        self.load_document()
+        self.load_document(silent=True)
 
-    def save_document(self):
-        if not self.htmlLoaded:
+    def check_id(self, col_id, doc_id):
+        for col in self.field_collection:
+            col = col_id if not col else col
+            doc = load_document(col, doc_id)
+            if doc:
+                return True
+        return False
+
+    def gen_id(self, col_id):
+        s = ""
+        while True:
+            s = uuid.uuid4()
+            if not self.check_id(col_id, str(s)):
+                return str(s)
+
+    def save_document(self, silent=False):
+        if not hasattr(self, "htmlLoaded") or not self.htmlLoaded:
             return
         
         col_id = self.collection if self.collection else self.collection_label.text().strip()
 
-        if not col_id:
-            self.status_label.setText("Please enter a collection title to create")
+        if not col_id: # valid collection ID check
+            self.message("Empty Collection ID", silent=silent)
             return
-
-        data = {}
-
-        for field in self.field_widgets:
-            data[field] = self.get_field_value(field)
-            if not ''.join(data[field].split(' ')):
-                self.status_label.setText(f"Field \"{field}\" is empty")
-                return 
-
+        
+        for collection in self.field_collection:
+            if not collection or check_collection(collection):
+                continue
+            self.warning(f"\"{collection}\" Does Not Exist (Proceeding Anyway)")
+        
         doc_id = self.doc_id_input.currentText().strip()
-        data['updated'] = get_timestamp()
+        doc_id = self.gen_id(col_id) if not doc_id else doc_id
 
-        if not update_document(col_id, doc_id, data):
-            data['created'] = get_timestamp()
-            new_id = create_document(col_id, doc_id, data)
-            self.doc_id_input.setCurrentText(new_id)
-            self.status_label.setText(f"Created new doc with ID \"{new_id}\"")
-            if not self.collection:
-                self.collectionCreated.emit({"id": col_id, "doc_id": new_id})
-        else:
-            self.status_label.setText(f"Updated doc with ID \"{doc_id}\"")
+        for field in self.fields: # valid data check
+            if not ''.join(self.get_field_value(field).split(' ')):
+                self.message(f"Empty \"{field}\" Field", silent=silent)
+                return
 
-    def load_document(self):
+        for collection in self.field_collection:
 
-        if not self.htmlLoaded:
+            data = {}
+
+            for field in self.field_collection[collection]:
+                data[field] = self.get_field_value(field)
+
+            col = col_id if not collection else collection
+
+            if col in self.tags:
+                data['tag'] = self.tags[col]
+
+            data['updated'] = get_timestamp()
+
+            if not update_document(col, doc_id, data):
+                data['created'] = get_timestamp()
+                create_document(col, doc_id, data)
+        
+        self.message(f"Saved \"{doc_id}\"", silent=silent)
+        
+        self.doc_id_input.setCurrentText(doc_id)
+
+        if not self.collection: # new collection created
+            self.collectionCreated.emit({"id": col_id, "doc_id": doc_id})
+
+    def load_document(self, silent=False):
+
+        if not hasattr(self, "htmlLoaded") or not self.htmlLoaded:
             return
         
         col_id = self.collection
 
-        if not col_id:
-            self.status_label.setText("Creating new collection")
+        if not col_id: # collection ID check
+            self.message("Creating New Collection", silent=silent)
             return
            
         doc_id = self.doc_id_input.currentText().strip()
 
-        if not doc_id:
-            self.status_label.setText("Please enter a Document ID")
-            return
-
-        doc_dict = load_document(col_id, doc_id)
-
-        if doc_dict is None:
-            self.status_label.setText(f"\"{doc_id}\" does not exist in \"{col_id}\"")
+        if not doc_id: # document ID check
+            self.message("Empty Document ID", silent=silent)
             return
         
-        for field in self.field_widgets:
-            self.set_field_value(field, doc_dict.get(field))
+        for collection in self.field_collection:
+
+            col_id = self.collection if not collection else collection
+
+            doc_dict = load_document(col_id, doc_id)
+
+            if not doc_dict:
+                continue
+            
+            for field in self.field_collection[collection]:
+                self.set_field_value(field, doc_dict.get(field))
         
-        self.status_label.setText(f"Loaded document \"{doc_id}\"")
+        self.message(f"Loaded document \"{doc_id}\"", silent=silent)
 
     def clear_fields(self):
-        self.collection_label.setText("")
-        self.doc_id_input.setCurrentText("")
-        for field in self.field_widgets:
-            self.set_field_value(field, "")
-        self.status_label.setText("")
+        if hasattr(self, "collection_label"):
+            self.collection_label.setText("")
+        if hasattr(self, "doc_id_input"):
+            self.doc_id_input.setCurrentText("")
+        if hasattr(self, "field_widgets"):
+            for field in self.field_widgets:
+                self.set_field_value(field, "")
+        if hasattr(self, "status_label"):
+            self.status_label.setText("")
 
     def gen_html(self):
         return ""
     
     def set_collection(self, msg):
-        collection = msg.get("id") if msg else None
+        self.clear_fields()
+        collection = msg.get("id")
+        if hasattr(self, "intended"):
+            if collection and collection not in self.intended:
+                self.warning(f"\"{collection}\" Not Intended for \"{self.title}\" Page")
         self.collection_label.setText(collection)
         if check_collection(collection):
             self.collection = collection
@@ -216,5 +278,11 @@ class CollectionEditorPage(QtWidgets.QWidget):
         if docs is None:
             return
         for doc in docs:
+            if self.collection in self.tags and doc.get('tag') != self.tags[self.collection]:
+                continue
             self.doc_id_input.addItem(doc['id'])
+
         self.doc_id_input.setCurrentText(doc_id if doc_id else "")
+
+        self.load_document(silent=True)
+        

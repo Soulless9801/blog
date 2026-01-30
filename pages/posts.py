@@ -2,7 +2,7 @@ from pages.page import CollectionEditorPage
 
 class PostsPage(CollectionEditorPage):
 
-    def __init__(self, collection="posts"):
+    def __init__(self, collection=None):
 
         fields = {
             'title': {
@@ -16,7 +16,9 @@ class PostsPage(CollectionEditorPage):
             }
         }
 
-        super().__init__(collection=collection, fields=fields, theme='dark', title="Posts")
+        intended_collections = ['posts']
+
+        super().__init__(collection=collection, fields=fields, intended_collections=intended_collections, theme='dark', title="Posts")
 
     def gen_html(self):
 

@@ -1,6 +1,6 @@
 import sys
 from pages.posts import PostsPage
-from pages.problems import ProblemsPage
+from pages.problems import USACOProblemsPage
 from PyQt5 import QtWidgets, QtCore
 
 from datetime import datetime
@@ -102,21 +102,24 @@ class HomePage(QtWidgets.QWidget):
         btn.clicked.connect(lambda _, c=msg: self.refresh_page({"id": c.get("id")}))
         self.cbox.insertWidget(self.cbox.count() - 2, btn)
         self.refresh_page(msg)
+        widget = self.stack.currentWidget()
+        widget.message(f"Note: Add {msg.get('id')} to Intended Collections for page \"{widget.title}\"")
 
     def refresh_page(self, msg):
         widget = self.stack.currentWidget()
-        widget.clear_fields()
         widget.set_collection(msg)
-        widget.load_document()
 
     def navigate(self, route):
         page = self.pages.get(route)
+        collection = self.stack.currentWidget().collection
+        doc = self.stack.currentWidget().doc_id_input.currentText().strip()
         if page:
             self.stack.setCurrentWidget(page)
+            self.refresh_page({ "id": collection, "doc_id": doc })
 
 if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
-    home_page = HomePage([PostsPage, ProblemsPage])
+    home_page = HomePage([PostsPage, USACOProblemsPage])
     home_page.show()
     sys.exit(app.exec_())
 
