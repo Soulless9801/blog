@@ -1,6 +1,6 @@
 import sys
 from pages.posts import PostsPage
-from pages.problems import USACOProblemsPage
+from pages.problems import ProblemsPage, USACOProblemsPage
 from PyQt5 import QtWidgets, QtCore
 
 from datetime import datetime
@@ -119,7 +119,7 @@ class HomePage(QtWidgets.QWidget):
 
 if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
-    home_page = HomePage([PostsPage, USACOProblemsPage])
+    home_page = HomePage([PostsPage, ProblemsPage, USACOProblemsPage])
     home_page.show()
     sys.exit(app.exec_())
 

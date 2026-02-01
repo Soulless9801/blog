@@ -43,7 +43,7 @@ The parent class accepts the following parameters:
 - `doc_id` denotes the ID of the initial document to be loaded.
 - `theme` denotes a theme preset that can be used to style web view.
 - `fields` denotes a dictionary mapping Firestore fields to corresponding schema.
-- `tags` denotes a dictionary mapping collection ID's to string value that can be stored and used to identify different document "types" within the same collection (documents saved with this specific editor will have this tag, so as to not be confused with other documents)
+- `tag` denotes a string value stored and used to identify different document "types" within the same collection (documents modified with this specific editor will have this tag, so as to not be confused with other documents)
 - `intended_collections` denotes a list of collections that are intended to be modified by this page
 - `title` denotes the name of the page.
 

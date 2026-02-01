@@ -14,13 +14,13 @@ class CollectionEditorPage(QtWidgets.QWidget):
 
     collectionCreated = QtCore.pyqtSignal(object) # not this class's problem anymore
 
-    def __init__(self, collection=None, doc_id=None, fields={}, tags={}, intended_collections=[], theme='dark', title="Collection Editor"):
+    def __init__(self, collection=None, doc_id=None, fields={}, tag=None, intended_collections=[], theme='dark', title="Collection Editor"):
         super().__init__()
 
         # initialization
         self.theme = theme
 
-        self.tags = tags
+        self.tag = tag
 
         self.intended = intended_collections
 
@@ -196,8 +196,8 @@ class CollectionEditorPage(QtWidgets.QWidget):
 
             col = col_id if not collection else collection
 
-            if col in self.tags:
-                data['tag'] = self.tags[col]
+            if self.tag:
+                data['tag'] = self.tag
 
             data['updated'] = get_timestamp()
 
@@ -278,7 +278,7 @@ class CollectionEditorPage(QtWidgets.QWidget):
         if docs is None:
             return
         for doc in docs:
-            if self.collection in self.tags and doc.get('tag') != self.tags[self.collection]:
+            if self.tag and doc.get('tag') != self.tag:
                 continue
             self.doc_id_input.addItem(doc['id'])
 

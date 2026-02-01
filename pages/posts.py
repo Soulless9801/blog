@@ -127,5 +127,8 @@ class PostsPage(CollectionEditorPage):
     def render_markdown(self):
         latex_str = self.field_widgets['body'].toPlainText()
         js = f"renderContent({latex_str!r});"
-        self.web.page().runJavaScript(js)
+        try:
+            self.web.page().runJavaScript(js)
+        except:
+            return
 

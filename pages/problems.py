@@ -1,6 +1,6 @@
 from pages.page import CollectionEditorPage
 
-class USACOProblemsPage(CollectionEditorPage):
+class ProblemsPage(CollectionEditorPage):
 
     def __init__(self, collection=None):
 
@@ -20,7 +20,7 @@ class USACOProblemsPage(CollectionEditorPage):
 
         intended_collections = ['problems']
 
-        super().__init__(collection=collection, fields=fields, intended_collections=intended_collections, theme='github-dark', title="USACO Problems")
+        super().__init__(collection=collection, fields=fields, intended_collections=intended_collections, theme='github-dark', title="Problems")
     
     def gen_html(self):
         return r"""
@@ -78,7 +78,6 @@ class USACOProblemsPage(CollectionEditorPage):
         self.web.page().runJavaScript(js)
 
 
-
 class USACOProblemsPage(CollectionEditorPage):
 
     def __init__(self, collection=None):
@@ -113,13 +112,11 @@ class USACOProblemsPage(CollectionEditorPage):
             },
         }
 
-        tags = {
-            collection: 'usaco',
-        }
+        tag = 'usaco'
 
         intended_collections = ['problems']
 
-        super().__init__(collection=collection, fields=fields, tags=tags, intended_collections=intended_collections, theme='github-dark', title="USACO Problems")
+        super().__init__(collection=collection, fields=fields, tag=tag, intended_collections=intended_collections, theme='github-dark', title="USACO Problems")
     
     def gen_html(self):
         return r"""
