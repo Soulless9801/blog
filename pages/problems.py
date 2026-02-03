@@ -168,6 +168,8 @@ class USACOProblemsPage(CollectionEditorPage):
         )
     
     def render_markdown(self):
+        if not hasattr(self, "htmlLoaded") or not self.htmlLoaded:
+            return
         code_lang = self.field_widgets['language'].currentText().strip()
         code_str = self.field_widgets['submission'].toPlainText()
         js = f"renderCode({code_str!r}, {code_lang!r}, '{self.theme}');"

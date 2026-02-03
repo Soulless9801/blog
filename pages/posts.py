@@ -16,7 +16,7 @@ class PostsPage(CollectionEditorPage):
             }
         }
 
-        intended_collections = ['posts']
+        intended_collections = ['posts', 'problems']
 
         super().__init__(collection=collection, fields=fields, intended_collections=intended_collections, theme='dark', title="Posts")
 
@@ -106,12 +106,12 @@ class PostsPage(CollectionEditorPage):
                         function renderContent(text) {
                             const container = document.getElementById("content");
                             container.innerHTML = parseMarkdown(text);
-
                             renderMathInElement(container, {
                                 delimiters: [
                                     {left: "\\[", right: "\\]", display: true},
                                     {left: "\\(", right: "\\)", display: false}
-                                ]
+                                ],
+                                throwOnError: false
                             });
                         }
                     </script>
@@ -125,10 +125,9 @@ class PostsPage(CollectionEditorPage):
         )
 
     def render_markdown(self):
+        if not hasattr(self, "htmlLoaded") or not self.htmlLoaded:
+            return
         latex_str = self.field_widgets['body'].toPlainText()
         js = f"renderContent({latex_str!r});"
-        try:
-            self.web.page().runJavaScript(js)
-        except:
-            return
+        self.web.page().runJavaScript(js)
 

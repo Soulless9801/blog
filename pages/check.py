@@ -46,8 +46,12 @@ def update_document(collection_name, document_id, data): # update document in co
     db.collection(collection_name).document(document_id).set(data, merge=True)
     return True
 
-def delete_document(collection_name, document_id):
-    # TODO
+def delete_document(collection_name, document_id): # TODO: add confirmation display on main app
+    if not check_collection(collection_name):
+        return
+    if not document_id:
+        return
+    db.collection(collection_name).document(document_id).delete()
     return
 
 def get_timestamp():
