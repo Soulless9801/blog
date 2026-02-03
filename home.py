@@ -154,7 +154,7 @@ if __name__ == "__main__":
             font-size: 11px;
             background-color: %s;
         }
-        QLabel, QLineEdit, QTextEdit, QComboBox, QPlainTextEdit, QPushButton {
+        QLabel, QLineEdit, QTextEdit, QComboBox, QAbstractItemView, QPlainTextEdit, QPushButton {
             padding: 4px;
             font-size: 11px;
             background-color: transparent;
